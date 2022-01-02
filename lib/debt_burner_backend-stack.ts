@@ -1,15 +1,23 @@
-import { Stack, StackProps, aws_cognito, aws_iam } from "aws-cdk-lib";
+import {
+  Stack,
+  StackProps,
+  aws_cognito,
+  aws_iam,
+  aws_appsync,
+  aws_dynamodb
+} from "aws-cdk-lib";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
 
 const baseName = "debtBurner";
 
 export class DebtBurnerBackendStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+    this.generateAuthStack();
+  }
 
-    // The code that defines your stack goes here
+  public generateAuthStack() {
     const userPool = new aws_cognito.UserPool(this, `${baseName}UserPool`, {
       signInAliases: {
         email: true,
@@ -125,6 +133,107 @@ export class DebtBurnerBackendStack extends Stack {
           unauthenticated: unauthenticatedRole.roleArn,
           authenticated: authenticatedRole.roleArn
         }
+      }
+    );
+
+    const api = new aws_appsync.CfnGraphQLApi(this, `${baseName}Api`, {
+      name: `${baseName}Api`,
+      authenticationType: "AMAZON_COGNITO_USER_POOLS",
+      userPoolConfig: {
+        awsRegion: this.region,
+        userPoolId: userPool.userPoolId,
+        // Change to deny after testing
+        defaultAction: "ALLOW"
+      }
+    });
+
+    const cfnGraphQlSchema = new aws_appsync.CfnGraphQLSchema(
+      this,
+      `${baseName}Schema`,
+      {
+        apiId: api.attrApiId,
+        definition: `
+        schema {
+          query: Query
+          mutation: Mutation
+        }
+        type Query {
+            # Get a single value of type 'Post' by primary key.
+            singleTransaction(id: ID!): Transaction
+        }
+        type Mutation {
+            # Put a single value of type 'Transaction'.
+            # If an item exists it's updated. If it does not it's created.
+            putTransaction(id: ID!, title: String!): Transaction
+        }
+        type Transaction {
+          isDeleted: Boolean!;
+          updatedAt: Int!;
+          createdAt: Int!;
+          description: String!;
+          childCategoryId: ID!;
+          vendorId: ID!;
+          amount: Float!;
+          paid: Boolean!;
+        }
+      `
+      }
+    );
+
+    const dynamoTable = new aws_dynamodb.Table(this, `${baseName}Table`, {
+      partitionKey: {
+        name: "PK",
+        type: aws_dynamodb.AttributeType.STRING
+      },
+      sortKey: {
+        name: "SK",
+        type: aws_dynamodb.AttributeType.STRING
+      }
+    });
+
+    const dataLinkRole = new aws_iam.Role(this, "AppsyncDynamoDbAccessRole", {
+      assumedBy: new aws_iam.FederatedPrincipal(
+        "cognito-identity.amazonaws.com",
+        {
+          StringEquals: {
+            "cognito-identity.amazonaws.com:aud": identityPool.ref
+          },
+          "ForAnyValue:StringLike": {
+            "cognito-identity.amazonaws.com:amr": "unauthenticated"
+          }
+        },
+        "sts:AssumeRoleWithWebIdentity"
+      )
+    });
+
+    dataLinkRole.addToPolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          "dynamodb:DeleteItem",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:UpdateItem"
+        ],
+        resources: [dynamoTable.tableArn]
+      })
+    );
+
+    const dynamoDataSource = new aws_appsync.CfnDataSource(
+      this,
+      `${baseName}DynamoDataSource`,
+      {
+        apiId: api.attrApiId,
+        name: `${baseName}DynamoDataSource`,
+        type: "AMAZON_DYNAMODB",
+        description: "DynamoDB Data Source",
+        dynamoDbConfig: {
+          awsRegion: this.region,
+          tableName: dynamoTable.tableName
+        },
+        serviceRoleArn: dataLinkRole.roleArn
       }
     );
   }
