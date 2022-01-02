@@ -1,10 +1,28 @@
 {
-  "name": "debtburnerbackend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "debt_burner_backend",
+  "version": "0.1.0",
+  "bin": {
+    "debt_burner_backend": "bin/debt_burner_backend.js"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.10",
+    "@types/node": "10.17.27",
+    "jest": "^26.4.2",
+    "ts-jest": "^26.2.0",
+    "aws-cdk": "2.3.0",
+    "ts-node": "^9.0.0",
+    "typescript": "~3.9.7"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.3.0",
+    "constructs": "^10.0.0",
+    "source-map-support": "^0.5.16"
   },
   "repository": {
     "type": "git",
@@ -15,9 +33,5 @@
   "bugs": {
     "url": "https://github.com/alex-hladun/debtBurnerBackend/issues"
   },
-  "homepage": "https://github.com/alex-hladun/debtBurnerBackend#readme",
-  "dependencies": {
-    "aws-cdk-lib": "^2.3.0",
-    "typescript": "^4.5.4"
-  }
+  "homepage": "https://github.com/alex-hladun/debtBurnerBackend#readme"
 }
