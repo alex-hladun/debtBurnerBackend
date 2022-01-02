@@ -19,7 +19,7 @@ export class DebtBurnerBackendStack extends Stack {
 
     const cfnUserPool = new aws_cognito.CfnUserPool(
       this,
-      `${baseName}UserPool`,
+      `${baseName}CfnUserPool`,
       {
         userPoolName: `${baseName}UserPool`,
         autoVerifiedAttributes: ["email"],
